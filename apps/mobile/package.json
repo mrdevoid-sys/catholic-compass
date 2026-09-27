@@ -1,6 +1,6 @@
 {
   "name": "catholic-compass-mobile",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "private": true,
   "main": "expo/AppEntry.js",
   "scripts": {
@@ -16,10 +16,10 @@
     "submit:ios": "npx eas-cli submit --platform ios --profile production"
   },
   "dependencies": {
-    "@expo/metro-config": "^57.0.12",
+    "@expo/metro-config": "^57.0.25",
     "@expo/vector-icons": "^15.1.1",
-    "@react-native-async-storage/async-storage": "^3.1.1",
-    "@react-native/js-polyfills": "0.86.2",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native/js-polyfills": "0.86.3",
     "expo": "^57.0.25",
     "expo-constants": "^57.0.19",
     "expo-font": "^57.0.4",
@@ -30,7 +30,7 @@
     "expo-splash-screen": "^57.0.9",
     "expo-status-bar": "^57.0.1",
     "react": "19.2.3",
-    "react-native": "0.86.2",
+    "react-native": "0.86.3",
     "react-native-safe-area-context": "^5.10.0",
     "react-native-screens": "^4.28.0"
   },
