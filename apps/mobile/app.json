@@ -28,7 +28,10 @@
       ]
     ],
     "extra": {
-      "apiBaseUrl": "https://api.example.com"
+      "apiBaseUrl": "https://api.example.com",
+      "eas": {
+        "projectId": "7a7141f5-22c3-4264-8402-c869836e015a"
+      }
     }
   }
 }
