@@ -4,13 +4,13 @@
     "owner": "potsofclay",
     "slug": "catholic-compass",
     "scheme": "catholiccompass",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "app.catholiccompass.pilgrim",
-      "buildNumber": "3",
+      "buildNumber": "4",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Catholic Compass uses your location only when you ask to find Catholic places near you.",
         "ITSAppUsesNonExemptEncryption": false
