@@ -19,20 +19,23 @@ import {
 } from 'react-native';
 
 type Tab = 'discover' | 'route' | 'saved' | 'journal';
-type Category = 'Shrine' | 'Church' | 'Basilica' | 'Latin Mass' | 'Monastery' | 'Pilgrimage' | 'Relics';
-type Verification = 'source checked' | 'community listing';
-type CoordinateConfidence = 'rooftop' | 'street' | 'approximate';
-type Filter = 'All' | Category | 'Source checked' | 'Route ready';
+type Category = 'Shrines' | 'Churches' | 'Basilicas' | 'Latin Mass' | 'Monasteries' | 'Pilgrimage' | 'Relics';
+type Filter = 'All places' | Category | 'Source checked' | 'Route ready';
+type Verification = 'Source checked' | 'Community listing';
+type Confidence = 'precise' | 'approximate';
 
-interface Place {
+type Coordinates = {latitude: number; longitude: number};
+
+type Place = {
   id: string;
   name: string;
   city: string;
-  state: string;
+  region: string;
+  area: string;
   address: string;
   latitude: number;
   longitude: number;
-  coordinateConfidence: CoordinateConfidence;
+  confidence: Confidence;
   categories: Category[];
   verification: Verification;
   description: string;
@@ -40,27 +43,20 @@ interface Place {
   phone?: string;
   scheduleNote?: string;
   sourceNote: string;
-}
+};
 
-interface RouteResult {
+type SuggestedStop = Place & {distanceFromRouteMiles: number};
+
+type RouteResult = {
   fromLabel: string;
   toLabel: string;
   distanceMiles: number;
   durationMinutes: number;
-  coordinates: Coordinate[];
+  coordinates: Coordinates[];
   stops: SuggestedStop[];
-}
+};
 
-interface Coordinate {
-  latitude: number;
-  longitude: number;
-}
-
-interface SuggestedStop extends Place {
-  distanceFromRouteMiles: number;
-}
-
-interface SavedTrip {
+type SavedTrip = {
   id: string;
   name: string;
   from: string;
@@ -69,280 +65,116 @@ interface SavedTrip {
   durationMinutes: number;
   stopIds: string[];
   createdAt: string;
-}
-
-interface StoredState {
-  savedIds: string[];
-  trips: SavedTrip[];
-  journal: Record<string, string>;
-}
-
-const STORAGE_KEY = 'catholic-compass-mobile:v3';
-const MILES_PER_METER = 0.000621371;
-const FILTERS: Filter[] = ['All', 'Shrine', 'Church', 'Basilica', 'Latin Mass', 'Monastery', 'Pilgrimage', 'Relics', 'Source checked', 'Route ready'];
-
-const colors = {
-  ink: '#201c17',
-  muted: '#6d6458',
-  green: '#123d34',
-  green2: '#1e5a4d',
-  green3: '#dce9df',
-  ivory: '#fbf6ea',
-  parchment: '#f1e7d2',
-  card: '#fffdf7',
-  line: '#dfd2ba',
-  gold: '#b88634',
-  gold2: '#ead8aa',
-  oxblood: '#792f2f',
-  shadow: 'rgba(25, 31, 27, 0.13)'
 };
 
-const PLACES: Place[] = [
-  {
-    id: 'divine-mercy-stockbridge',
-    name: 'National Shrine of The Divine Mercy',
-    city: 'Stockbridge',
-    state: 'MA',
-    address: '2 Prospect Hill Rd, Stockbridge, MA 01262',
-    latitude: 42.3042,
-    longitude: -73.3396,
-    coordinateConfidence: 'street',
-    categories: ['Shrine', 'Pilgrimage'],
-    verification: 'source checked',
-    description: 'A pilgrimage shrine in Stockbridge, Massachusetts, cared for by the Marian Fathers and dedicated to the message of Divine Mercy.',
-    website: 'https://shrineofdivinemercy.org/',
-    phone: '+1 413-298-3931',
-    scheduleNote: 'Check the shrine website before travelling for current Mass, confession, and event times.',
-    sourceNote: 'Official shrine listing; schedules are not reproduced as current unless checked by the traveler.'
-  },
-  {
-    id: 'st-leonard-boston',
-    name: "St. Leonard's Church",
-    city: 'Boston',
-    state: 'MA',
-    address: '320 Hanover St, Boston, MA 02113',
-    latitude: 42.3638,
-    longitude: -71.0549,
-    coordinateConfidence: 'street',
-    categories: ['Church'],
-    verification: 'source checked',
-    description: 'A historic Catholic parish in Boston\'s North End, included as a source-checked church listing.',
-    website: 'https://saintleonardchurchboston.org/',
-    sourceNote: 'Official parish source retained. Confirm practical details before visiting.'
-  },
-  {
-    id: 'immaculate-conception-washington',
-    name: 'Basilica of the National Shrine of the Immaculate Conception',
-    city: 'Washington',
-    state: 'DC',
-    address: '400 Michigan Ave NE, Washington, DC 20017',
-    latitude: 38.9334,
-    longitude: -77.0007,
-    coordinateConfidence: 'street',
-    categories: ['Basilica', 'Shrine', 'Pilgrimage'],
-    verification: 'source checked',
-    description: 'A major Catholic shrine and basilica in Washington, DC, dedicated to the Blessed Virgin Mary under the title of the Immaculate Conception.',
-    website: 'https://www.nationalshrine.org/',
-    sourceNote: 'Official basilica source. Current liturgical schedules must be checked at the source.'
-  },
-  {
-    id: 'eucharistic-shrine-hanceville',
-    name: 'Shrine of the Most Blessed Sacrament',
-    city: 'Hanceville',
-    state: 'AL',
-    address: '3222 County Road 548, Hanceville, AL 35077',
-    latitude: 34.0608,
-    longitude: -86.7671,
-    coordinateConfidence: 'street',
-    categories: ['Shrine', 'Monastery', 'Pilgrimage'],
-    verification: 'source checked',
-    description: 'A shrine and monastic pilgrimage destination in Alabama associated with the Poor Clares of Perpetual Adoration.',
-    website: 'https://www.olamshrine.com/',
-    sourceNote: 'Official shrine source retained. Confirm visitor details before travelling.'
-  },
-  {
-    id: 'our-lady-of-good-help',
-    name: 'National Shrine of Our Lady of Champion',
-    city: 'Champion',
-    state: 'WI',
-    address: '4047 Chapel Dr, Champion, WI 54229',
-    latitude: 44.5884,
-    longitude: -87.7733,
-    coordinateConfidence: 'street',
-    categories: ['Shrine', 'Pilgrimage'],
-    verification: 'source checked',
-    description: 'A Marian shrine in Wisconsin known as the National Shrine of Our Lady of Champion.',
-    website: 'https://championshrine.org/',
-    sourceNote: 'Official shrine source retained. Apparition-related interpretation is left to official sources.'
-  },
-  {
-    id: 'st-john-cantius-chicago',
-    name: 'St. John Cantius Church',
-    city: 'Chicago',
-    state: 'IL',
-    address: '825 N Carpenter St, Chicago, IL 60642',
-    latitude: 41.8975,
-    longitude: -87.6535,
-    coordinateConfidence: 'street',
-    categories: ['Church', 'Latin Mass'],
-    verification: 'community listing',
-    description: 'A Chicago Catholic church widely associated with sacred liturgy and traditional Catholic devotion. Schedule details should be checked from the parish.',
-    website: 'https://www.cantius.org/',
-    scheduleNote: 'Latin Mass designation is retained as a listing category; check the parish website for current times.',
-    sourceNote: 'Community listing with official website attached; Mass times are not asserted as current.'
-  },
-  {
-    id: 'st-mary-pine-bluff',
-    name: 'St. Mary of Pine Bluff Catholic Church',
-    city: 'Pine Bluff',
-    state: 'WI',
-    address: '3673 County Road P, Cross Plains, WI 53528',
-    latitude: 43.0607,
-    longitude: -89.6648,
-    coordinateConfidence: 'street',
-    categories: ['Church', 'Latin Mass'],
-    verification: 'community listing',
-    description: 'A Catholic parish listing preserved for travelers seeking traditional liturgy; current schedules require source confirmation.',
-    website: 'https://stmarypinebluff.com/',
-    scheduleNote: 'Check the parish website for current Mass and confession times.',
-    sourceNote: 'Community listing with official site reference.'
-  },
-  {
-    id: 'cathedral-st-paul',
-    name: 'Cathedral of Saint Paul',
-    city: 'Saint Paul',
-    state: 'MN',
-    address: '239 Selby Ave, Saint Paul, MN 55102',
-    latitude: 44.9469,
-    longitude: -93.1086,
-    coordinateConfidence: 'street',
-    categories: ['Church', 'Pilgrimage'],
-    verification: 'source checked',
-    description: 'The cathedral church of Saint Paul, Minnesota, a landmark Catholic church overlooking the city.',
-    website: 'https://www.cathedralsaintpaul.org/',
-    sourceNote: 'Official cathedral source retained.'
-  },
-  {
-    id: 'holy-hill-wisconsin',
-    name: 'Basilica and National Shrine of Mary Help of Christians at Holy Hill',
-    city: 'Hubertus',
-    state: 'WI',
-    address: '1525 Carmel Rd, Hubertus, WI 53033',
-    latitude: 43.2424,
-    longitude: -88.3261,
-    coordinateConfidence: 'street',
-    categories: ['Basilica', 'Shrine', 'Pilgrimage'],
-    verification: 'source checked',
-    description: 'A basilica and national shrine in Wisconsin served by Discalced Carmelites, commonly known as Holy Hill.',
-    website: 'https://www.holyhill.com/',
-    sourceNote: 'Official shrine source retained.'
-  },
-  {
-    id: 'st-cecilia-omaha',
-    name: 'St. Cecilia Cathedral',
-    city: 'Omaha',
-    state: 'NE',
-    address: '701 N 40th St, Omaha, NE 68131',
-    latitude: 41.2658,
-    longitude: -95.9726,
-    coordinateConfidence: 'street',
-    categories: ['Church'],
-    verification: 'source checked',
-    description: 'The cathedral church of Omaha, included as a route-ready Catholic destination for Nebraska travelers.',
-    website: 'https://stceciliacathedral.org/',
-    sourceNote: 'Official cathedral source retained.'
-  },
-  {
-    id: 'boys-town-dowd',
-    name: 'Dowd Memorial Chapel of the Immaculate Conception',
-    city: 'Boys Town',
-    state: 'NE',
-    address: '13943 Dowd Dr, Boys Town, NE 68010',
-    latitude: 41.2604,
-    longitude: -96.1312,
-    coordinateConfidence: 'approximate',
-    categories: ['Church', 'Pilgrimage'],
-    verification: 'community listing',
-    description: 'A Catholic chapel listing near Omaha. Coordinates are approximate and practical details should be confirmed before visiting.',
-    website: 'https://www.boystown.org/',
-    sourceNote: 'Community listing; location is approximate and should be treated as a travel aid rather than a verified property point.'
-  },
-  {
-    id: 'cathedral-holy-cross-boston',
-    name: 'Cathedral of the Holy Cross',
-    city: 'Boston',
-    state: 'MA',
-    address: '1400 Washington St, Boston, MA 02118',
-    latitude: 42.3416,
-    longitude: -71.0708,
-    coordinateConfidence: 'street',
-    categories: ['Church'],
-    verification: 'source checked',
-    description: 'The cathedral church of the Archdiocese of Boston.',
-    website: 'https://holycrossboston.com/',
-    sourceNote: 'Official cathedral source retained.'
-  },
-  {
-    id: 'st-patrick-cathedral-nyc',
-    name: "St. Patrick's Cathedral",
-    city: 'New York',
-    state: 'NY',
-    address: '5th Ave, New York, NY 10022',
-    latitude: 40.7585,
-    longitude: -73.9760,
-    coordinateConfidence: 'street',
-    categories: ['Church', 'Pilgrimage'],
-    verification: 'source checked',
-    description: 'A landmark Catholic cathedral in New York City.',
-    website: 'https://saintpatrickscathedral.org/',
-    sourceNote: 'Official cathedral source retained.'
-  },
-  {
-    id: 'st-anthony-shrine-boston',
-    name: 'St. Anthony Shrine',
-    city: 'Boston',
-    state: 'MA',
-    address: '100 Arch St, Boston, MA 02110',
-    latitude: 42.3547,
-    longitude: -71.0585,
-    coordinateConfidence: 'street',
-    categories: ['Shrine', 'Church'],
-    verification: 'source checked',
-    description: 'A Franciscan shrine in downtown Boston.',
-    website: 'https://stanthonyshrine.org/',
-    sourceNote: 'Official shrine source retained.'
-  },
-  {
-    id: 'saint-mary-oratory-rockford',
-    name: 'St. Mary Oratory',
-    city: 'Rockford',
-    state: 'IL',
-    address: '517 Elm St, Rockford, IL 61102',
-    latitude: 42.2700,
-    longitude: -89.0993,
-    coordinateConfidence: 'street',
-    categories: ['Church', 'Latin Mass'],
-    verification: 'community listing',
-    description: 'A Catholic oratory listing retained for traditional liturgy travelers. Confirm current schedules from the oratory before going.',
-    website: 'https://www.institute-christ-king.org/rockford-home',
-    scheduleNote: 'Traditional liturgy category retained; current schedule must be confirmed from the source.',
-    sourceNote: 'Community listing with institute source attached.'
-  }
+type StoredState = {
+  savedIds: string[];
+  selectedStopIds: string[];
+  trips: SavedTrip[];
+  journal: Record<string, string>;
+};
+
+const STORAGE_KEY = 'catholic-compass-mobile:v4';
+const MILES_PER_METER = 0.000621371;
+const CATALOG_TOTAL = 604;
+const MAPPED_TOTAL = 603;
+const LATIN_MASS_TOTAL = 462;
+const SOURCE_CHECKED_TOTAL = 17;
+
+const colors = {
+  ink: '#221d17',
+  coal: '#141713',
+  muted: '#776d60',
+  green: '#123d34',
+  green2: '#1e594c',
+  green3: '#dce9df',
+  ivory: '#fbf6ea',
+  paper: '#f5ecd9',
+  card: '#fffdf7',
+  line: '#ded1ba',
+  gold: '#b98634',
+  gold2: '#ecd9a8',
+  oxblood: '#762d2d',
+  sky: '#efe2c7',
+  hill: '#7d8b63',
+  deepHill: '#304c3f'
+};
+
+const FILTERS: Filter[] = ['All places', 'Shrines', 'Churches', 'Basilicas', 'Relics', 'Latin Mass', 'Monasteries', 'Pilgrimage', 'Source checked'];
+
+const THEMES = [
+  {title: 'Marian shrines', body: 'Places of pilgrimage, devotion, and quiet intercession.', icon: 'sparkles-outline' as const, filter: 'Shrines' as Filter},
+  {title: 'Historic churches', body: 'Cathedrals, basilicas, and parish churches with source links.', icon: 'business-outline' as const, filter: 'Churches' as Filter},
+  {title: 'Monasteries', body: 'Communities and grounds suited to silence and recollection.', icon: 'leaf-outline' as const, filter: 'Monasteries' as Filter},
+  {title: 'Traditional liturgy', body: 'Imported listings kept separate until venue details are checked.', icon: 'flame-outline' as const, filter: 'Latin Mass' as Filter}
 ];
+
+const PLACES: Place[] = [
+  place('st-leonard-boston', "St. Leonard's Church", 'Boston', 'MA', 'North End', '320 Hanover St, Boston, MA 02113', 42.3638, -71.0549, ['Churches'], 'Source checked', 'A historic Catholic parish in Boston\'s North End, included with source links for travelers exploring the city.', 'https://saintleonardchurchboston.org/'),
+  place('perpetual-help-boston', 'Basilica of Our Lady of Perpetual Help', 'Boston', 'MA', 'Roxbury', '1545 Tremont St, Boston, MA 02120', 42.3332, -71.1002, ['Basilicas', 'Churches'], 'Source checked', 'A Boston basilica and parish church known locally as Mission Church.', 'https://www.bostonsbasilica.com/'),
+  place('divine-mercy-stockbridge', 'National Shrine of The Divine Mercy', 'Stockbridge', 'MA', 'Stockbridge', '2 Prospect Hill Rd, Stockbridge, MA 01262', 42.3042, -73.3396, ['Shrines', 'Pilgrimage'], 'Source checked', 'A pilgrimage shrine in Stockbridge, Massachusetts, cared for by the Marian Fathers and dedicated to the message of Divine Mercy.', 'https://shrineofdivinemercy.org/'),
+  place('st-patrick-nyc', "St. Patrick's Cathedral", 'New York', 'NY', 'New York', '5th Ave, New York, NY 10022', 40.7585, -73.976, ['Churches', 'Pilgrimage'], 'Source checked', 'A landmark Catholic cathedral in New York City.', 'https://saintpatrickscathedral.org/'),
+  place('immaculate-conception-dc', 'Basilica of the National Shrine of the Immaculate Conception', 'Washington', 'DC', 'Washington', '400 Michigan Ave NE, Washington, DC 20017', 38.9334, -77.0007, ['Shrines', 'Basilicas', 'Pilgrimage'], 'Source checked', 'A major Catholic shrine and basilica dedicated to the Blessed Virgin Mary under the title of the Immaculate Conception.', 'https://www.nationalshrine.org/'),
+  place('shrine-st-joseph-st-louis', 'Shrine of St. Joseph', 'St. Louis', 'MO', 'St. Louis', '1220 N 11th St, St. Louis, MO 63106', 38.6417, -90.1923, ['Shrines', 'Churches'], 'Source checked', 'A historic Catholic shrine in St. Louis.', 'https://www.shrineofstjoseph.org/'),
+  place('cathedral-basilica-st-louis', 'Cathedral Basilica of St. Louis', 'St. Louis', 'MO', 'St. Louis', '4431 Lindell Blvd, St. Louis, MO 63108', 38.6421, -90.2547, ['Basilicas', 'Churches'], 'Source checked', 'A cathedral basilica in St. Louis noted for its sacred architecture and mosaics.', 'https://cathedralstl.org/'),
+  place('mission-san-juan-capistrano', 'Mission San Juan Capistrano', 'San Juan Capistrano', 'CA', 'San Juan Capistrano', '26801 Old Mission Rd, San Juan Capistrano, CA 92675', 33.5017, -117.6626, ['Churches', 'Pilgrimage'], 'Source checked', 'A historic California mission and Catholic heritage site.', 'https://www.missionsjc.com/'),
+  place('mission-carmel', 'Mission San Carlos Borromeo de Carmelo', 'Carmel-by-the-Sea', 'CA', 'Carmel-by-the-Sea', '3080 Rio Rd, Carmel-By-The-Sea, CA 93923', 36.5421, -121.9204, ['Churches', 'Pilgrimage'], 'Source checked', 'A historic California mission associated with St. Junipero Serra.', 'https://carmelmission.org/'),
+  place('cathedral-st-paul', 'Cathedral of St. Paul', 'St. Paul', 'MN', 'St. Paul', '239 Selby Ave, St Paul, MN 55102', 44.9469, -93.1086, ['Churches', 'Pilgrimage'], 'Source checked', 'The cathedral church of Saint Paul, Minnesota, overlooking the city.', 'https://www.cathedralsaintpaul.org/'),
+  place('mission-san-xavier', 'Mission San Xavier del Bac', 'Tucson', 'AZ', 'Tucson', '1950 W San Xavier Rd, Tucson, AZ 85746', 32.107, -111.0079, ['Churches', 'Pilgrimage'], 'Source checked', 'A historic Catholic mission south of Tucson.', 'https://sanxaviermission.org/'),
+  place('cathedral-savannah', 'Cathedral of St. John the Baptist', 'Savannah', 'GA', 'Savannah', '222 E Harris St, Savannah, GA 31401', 32.0731, -81.0916, ['Churches'], 'Source checked', 'The cathedral church in Savannah, Georgia.', 'https://savannahcathedral.org/'),
+  place('seton-shrine', 'National Shrine of St. Elizabeth Ann Seton', 'Emmitsburg', 'MD', 'Emmitsburg', '339 S Seton Ave, Emmitsburg, MD 21727', 39.7015, -77.3252, ['Shrines', 'Pilgrimage'], 'Source checked', 'A national shrine honoring St. Elizabeth Ann Seton.', 'https://setonshrine.org/'),
+  place('lasalette-attleboro', 'Shrine of Our Lady of La Salette', 'Attleboro', 'MA', 'Attleboro', '947 Park St, Attleboro, MA 02703', 41.9434, -71.2617, ['Shrines', 'Pilgrimage'], 'Source checked', 'A Marian shrine in Attleboro, Massachusetts.', 'https://lasaletteattleboroshrine.org/'),
+  place('holy-hill', 'Holy Hill National Shrine of Mary', 'Hubertus', 'WI', 'Hubertus', '1525 Carmel Rd, Hubertus, WI 53033', 43.2424, -88.3261, ['Shrines', 'Basilicas', 'Pilgrimage'], 'Source checked', 'A basilica and national shrine in Wisconsin served by Discalced Carmelites.', 'https://www.holyhill.com/'),
+  place('saint-francis-lincoln', 'Saint Francis of Assisi Church', 'Lincoln', 'NE', 'Lincoln', '1145 South St, Lincoln, NE 68502', 40.7911, -96.7064, ['Latin Mass', 'Churches'], 'Source checked', 'A Catholic church listing associated with traditional liturgy travelers. Check the parish source for current schedules.', undefined, 'Check official sources before travelling for Mass times.'),
+  place('our-lady-guadalupe-la-crosse', 'Shrine of Our Lady of Guadalupe', 'La Crosse', 'WI', 'La Crosse', '5250 Justin Rd, La Crosse, WI 54601', 43.7451, -91.2063, ['Shrines', 'Pilgrimage'], 'Source checked', 'A Marian shrine in La Crosse, Wisconsin.', 'https://guadalupeshrine.org/'),
+  place('cathedral-holy-cross-boston', 'Cathedral of the Holy Cross', 'Boston', 'MA', 'Boston', '1400 Washington St, Boston, MA 02118', 42.3416, -71.0708, ['Churches'], 'Community listing', 'The cathedral church of the Archdiocese of Boston. Details are preserved as a community listing until fully reviewed.', 'https://holycrossboston.com/'),
+  place('christ-king-chicago', 'Shrine of Christ the King', 'Chicago', 'IL', 'Chicago', '6415 S Woodlawn Ave, Chicago, IL 60637', 41.7785, -87.5962, ['Shrines', 'Latin Mass'], 'Community listing', 'A Catholic shrine listing in Chicago. Confirm current status, access, and liturgical schedule from official sources.', 'https://www.institute-christ-king.org/chicago-home'),
+  place('sacred-heart-dc', 'Shrine of the Sacred Heart', 'Washington', 'DC', 'Washington', '3211 Sacred Heart Way NW, Washington, DC 20010', 38.9327, -77.0364, ['Shrines', 'Churches'], 'Community listing', 'A Catholic shrine parish listing in Washington, DC.', 'https://sacredheartdc.org/'),
+  place('guadalupe-santa-fe', 'Shrine of Our Lady of Guadalupe', 'Santa Fe', 'NM', 'Santa Fe', '417 Agua Fria St, Santa Fe, NM 87501', 35.687, -105.9451, ['Shrines'], 'Community listing', 'A shrine listing in Santa Fe retained with community-listing status.', 'https://santuariodeguadalupesantafe.com/'),
+  place('st-anne-beaupre', 'Shrine of St. Anne', 'Beaupre', 'QC', 'Beaupre', '10018 Ave Royale, Sainte-Anne-de-Beaupre, QC G0A 3C0', 47.0235, -70.929, ['Shrines', 'Basilicas', 'Pilgrimage'], 'Community listing', 'A Canadian shrine listing retained for pilgrimage planning. Confirm current details from official sources.', 'https://sanctuairesainteanne.org/'),
+  place('grotto-lourdes-emmitsburg', 'Grotto of Our Lady of Lourdes', 'Emmitsburg', 'MD', 'Emmitsburg', '16330 Grotto Rd, Emmitsburg, MD 21727', 39.6824, -77.3497, ['Shrines', 'Pilgrimage'], 'Community listing', 'A shrine and grotto listing near Emmitsburg, Maryland.', 'https://www.nsgrotto.org/'),
+  place('cathedral-st-augustine', 'Cathedral of St. Augustine', 'St. Augustine', 'FL', 'St. Augustine', '38 Cathedral Pl, St. Augustine, FL 32084', 29.8949, -81.3135, ['Churches'], 'Community listing', 'The cathedral parish in historic St. Augustine, Florida.', 'https://thefirstparish.org/'),
+  place('st-john-cantius', 'St. John Cantius Church', 'Chicago', 'IL', 'Chicago', '825 N Carpenter St, Chicago, IL 60642', 41.8975, -87.6535, ['Churches', 'Latin Mass'], 'Community listing', 'A Chicago Catholic church widely associated with sacred liturgy and traditional Catholic devotion.', 'https://www.cantius.org/', 'Check the parish source for current Mass times.'),
+  place('st-mary-pine-bluff', 'St. Mary of Pine Bluff Catholic Church', 'Cross Plains', 'WI', 'Pine Bluff', '3673 County Road P, Cross Plains, WI 53528', 43.0607, -89.6648, ['Churches', 'Latin Mass'], 'Community listing', 'A parish listing preserved for travelers seeking traditional liturgy; current schedules require source confirmation.', 'https://stmarypinebluff.com/', 'Check the parish website for current times.'),
+  place('hanceville-shrine', 'Shrine of the Most Blessed Sacrament', 'Hanceville', 'AL', 'Hanceville', '3222 County Road 548, Hanceville, AL 35077', 34.0608, -86.7671, ['Shrines', 'Monasteries', 'Pilgrimage'], 'Source checked', 'A shrine and monastic pilgrimage destination in Alabama associated with the Poor Clares of Perpetual Adoration.', 'https://www.olamshrine.com/'),
+  place('champion-shrine', 'National Shrine of Our Lady of Champion', 'Champion', 'WI', 'Champion', '4047 Chapel Dr, Champion, WI 54229', 44.5884, -87.7733, ['Shrines', 'Pilgrimage'], 'Source checked', 'A Marian shrine in Wisconsin known as the National Shrine of Our Lady of Champion.', 'https://championshrine.org/'),
+  place('st-cecilia-omaha', 'St. Cecilia Cathedral', 'Omaha', 'NE', 'Omaha', '701 N 40th St, Omaha, NE 68131', 41.2658, -95.9726, ['Churches'], 'Source checked', 'The cathedral church of Omaha, included as a route-ready Catholic destination for Nebraska travelers.', 'https://stceciliacathedral.org/'),
+  place('dowd-chapel-boystown', 'Dowd Memorial Chapel of the Immaculate Conception', 'Boys Town', 'NE', 'Boys Town', '13943 Dowd Dr, Boys Town, NE 68010', 41.2604, -96.1312, ['Churches', 'Pilgrimage'], 'Community listing', 'A Catholic chapel listing near Omaha. Coordinates are approximate and practical details should be confirmed before visiting.', 'https://www.boystown.org/', undefined, 'Community listing; location is approximate and should be treated as a travel aid.', 'approximate')
+];
+
+function place(
+  id: string,
+  name: string,
+  city: string,
+  region: string,
+  area: string,
+  address: string,
+  latitude: number,
+  longitude: number,
+  categories: Category[],
+  verification: Verification,
+  description: string,
+  website?: string,
+  scheduleNote?: string,
+  sourceNote = verification === 'Source checked' ? 'Source link retained. Check official sources before travelling for current hours and schedules.' : 'Imported or community listing. Catholic Compass does not claim schedules are current until reviewed from official sources.',
+  confidence: Confidence = 'precise'
+): Place {
+  return {id, name, city, region, area, address, latitude, longitude, confidence, categories, verification, description, website, scheduleNote, sourceNote};
+}
 
 function normalize(value: string) {
   return value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
-function placeMatches(place: Place, query: string, filter: Filter) {
+function matches(place: Place, query: string, filter: Filter) {
   const q = normalize(query);
-  const text = normalize([place.name, place.city, place.state, place.address, place.description, place.categories.join(' ')].join(' '));
-  const queryMatches = !q || q.split(/\s+/).every((term) => text.includes(term));
-  const filterMatches = filter === 'All' || (filter === 'Source checked' ? place.verification === 'source checked' : filter === 'Route ready' ? true : place.categories.includes(filter as Category));
+  const haystack = normalize([place.name, place.city, place.region, place.area, place.address, place.description, place.categories.join(' ')].join(' '));
+  const queryMatches = !q || q.split(/\s+/).every((term) => haystack.includes(term));
+  const filterMatches = filter === 'All places' || (filter === 'Source checked' ? place.verification === 'Source checked' : filter === 'Route ready' ? true : place.categories.includes(filter as Category));
   return queryMatches && filterMatches;
 }
 
-function haversineMiles(a: Coordinate, b: Coordinate) {
+function haversineMiles(a: Coordinates, b: Coordinates) {
   const radiusMiles = 3958.8;
   const lat1 = (a.latitude * Math.PI) / 180;
   const lat2 = (b.latitude * Math.PI) / 180;
@@ -352,7 +184,7 @@ function haversineMiles(a: Coordinate, b: Coordinate) {
   return 2 * radiusMiles * Math.asin(Math.sqrt(h));
 }
 
-function pointToSegmentMiles(point: Coordinate, a: Coordinate, b: Coordinate) {
+function pointToSegmentMiles(point: Coordinates, a: Coordinates, b: Coordinates) {
   const meanLat = ((a.latitude + b.latitude + point.latitude) / 3) * Math.PI / 180;
   const x1 = a.longitude * Math.cos(meanLat);
   const y1 = a.latitude;
@@ -368,12 +200,10 @@ function pointToSegmentMiles(point: Coordinate, a: Coordinate, b: Coordinate) {
   return haversineMiles(point, projected);
 }
 
-function distanceFromPolylineMiles(point: Coordinate, route: Coordinate[]) {
+function distanceFromPolylineMiles(point: Coordinates, route: Coordinates[]) {
   if (route.length < 2) return Number.POSITIVE_INFINITY;
   let best = Number.POSITIVE_INFINITY;
-  for (let i = 0; i < route.length - 1; i += 1) {
-    best = Math.min(best, pointToSegmentMiles(point, route[i], route[i + 1]));
-  }
+  for (let i = 0; i < route.length - 1; i += 1) best = Math.min(best, pointToSegmentMiles(point, route[i], route[i + 1]));
   return best;
 }
 
@@ -384,23 +214,21 @@ function formatHours(minutes: number) {
   return `${hours} hr ${mins} min`;
 }
 
-async function geocodePlace(query: string): Promise<Coordinate> {
-  const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=us&q=${encodeURIComponent(query)}`, {
-    headers: {Accept: 'application/json'}
-  });
+async function geocode(query: string): Promise<Coordinates> {
+  const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=us,ca&q=${encodeURIComponent(query)}`, {headers: {Accept: 'application/json'}});
   if (!response.ok) throw new Error('The geocoding service did not respond.');
   const rows = await response.json();
-  if (!Array.isArray(rows) || rows.length === 0) throw new Error(`I could not locate "${query}". Try adding the state or ZIP code.`);
+  if (!Array.isArray(rows) || !rows.length) throw new Error(`I could not locate "${query}". Try adding the state or ZIP code.`);
   const latitude = Number(rows[0].lat);
   const longitude = Number(rows[0].lon);
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) throw new Error(`The location result for "${query}" was not usable.`);
   return {latitude, longitude};
 }
 
-async function fetchRoadRoute(from: Coordinate, to: Coordinate) {
+async function getRoadRoute(from: Coordinates, to: Coordinates) {
   const url = `https://router.project-osrm.org/route/v1/driving/${from.longitude},${from.latitude};${to.longitude},${to.latitude}?overview=full&geometries=geojson`;
   const response = await fetch(url);
-  if (!response.ok) throw new Error('The routing service did not respond.');
+  if (!response.ok) throw new Error('The road-routing service did not respond.');
   const json = await response.json();
   const route = json?.routes?.[0];
   const coords = route?.geometry?.coordinates;
@@ -408,66 +236,60 @@ async function fetchRoadRoute(from: Coordinate, to: Coordinate) {
   return {
     distanceMiles: route.distance * MILES_PER_METER,
     durationMinutes: route.duration / 60,
-    coordinates: coords.map(([longitude, latitude]: [number, number]) => ({latitude, longitude})) as Coordinate[]
+    coordinates: coords.map(([longitude, latitude]: [number, number]) => ({latitude, longitude})) as Coordinates[]
   };
 }
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('discover');
   const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState<Filter>('All');
+  const [filter, setFilter] = useState<Filter>('All places');
   const [selected, setSelected] = useState<Place | null>(null);
   const [savedIds, setSavedIds] = useState<string[]>([]);
+  const [selectedStopIds, setSelectedStopIds] = useState<string[]>([]);
   const [trips, setTrips] = useState<SavedTrip[]>([]);
   const [journal, setJournal] = useState<Record<string, string>>({});
-  const [from, setFrom] = useState('Portland, Maine');
-  const [to, setTo] = useState('Omaha, Nebraska');
-  const [corridorMiles, setCorridorMiles] = useState(25);
-  const [selectedStopIds, setSelectedStopIds] = useState<string[]>([]);
+  const [origin, setOrigin] = useState('Portland, Maine');
+  const [destination, setDestination] = useState('Omaha, Nebraska');
+  const [corridor, setCorridor] = useState(25);
   const [route, setRoute] = useState<RouteResult | null>(null);
-  const [routeError, setRouteError] = useState('');
   const [routing, setRouting] = useState(false);
+  const [routeError, setRouteError] = useState('');
 
   useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY)
-      .then((raw) => {
-        if (!raw) return;
-        const parsed = JSON.parse(raw) as Partial<StoredState>;
-        setSavedIds(parsed.savedIds ?? []);
-        setTrips(parsed.trips ?? []);
-        setJournal(parsed.journal ?? {});
-      })
-      .catch(() => undefined);
+    AsyncStorage.getItem(STORAGE_KEY).then((raw) => {
+      if (!raw) return;
+      const state = JSON.parse(raw) as Partial<StoredState>;
+      setSavedIds(state.savedIds ?? []);
+      setSelectedStopIds(state.selectedStopIds ?? []);
+      setTrips(state.trips ?? []);
+      setJournal(state.journal ?? {});
+    }).catch(() => undefined);
   }, []);
 
   useEffect(() => {
-    const state: StoredState = {savedIds, trips, journal};
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state)).catch(() => undefined);
-  }, [savedIds, trips, journal]);
+    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({savedIds, selectedStopIds, trips, journal} satisfies StoredState)).catch(() => undefined);
+  }, [savedIds, selectedStopIds, trips, journal]);
 
-  const results = useMemo(() => PLACES.filter((place) => placeMatches(place, query, filter)), [query, filter]);
-  const savedPlaces = useMemo(() => PLACES.filter((place) => savedIds.includes(place.id)), [savedIds]);
-  const selectedStops = useMemo(() => PLACES.filter((place) => selectedStopIds.includes(place.id)), [selectedStopIds]);
-  const routeReadyCount = PLACES.filter((place) => Number.isFinite(place.latitude) && Number.isFinite(place.longitude)).length;
-  const checkedCount = PLACES.filter((place) => place.verification === 'source checked').length;
-  const latinMassCount = PLACES.filter((place) => place.categories.includes('Latin Mass')).length;
+  const filteredPlaces = useMemo(() => PLACES.filter((placeItem) => matches(placeItem, query, filter)), [filter, query]);
+  const savedPlaces = useMemo(() => PLACES.filter((placeItem) => savedIds.includes(placeItem.id)), [savedIds]);
+  const selectedStops = useMemo(() => PLACES.filter((placeItem) => selectedStopIds.includes(placeItem.id)), [selectedStopIds]);
 
-  const toggleSaved = (place: Place) => setSavedIds((current) => (current.includes(place.id) ? current.filter((id) => id !== place.id) : [place.id, ...current]));
-  const toggleStop = (place: Place) => setSelectedStopIds((current) => (current.includes(place.id) ? current.filter((id) => id !== place.id) : [...current, place.id]));
+  const toggleSaved = (placeItem: Place) => setSavedIds((ids) => ids.includes(placeItem.id) ? ids.filter((id) => id !== placeItem.id) : [placeItem.id, ...ids]);
+  const toggleStop = (placeItem: Place) => setSelectedStopIds((ids) => ids.includes(placeItem.id) ? ids.filter((id) => id !== placeItem.id) : [...ids, placeItem.id]);
 
   const planRoute = async () => {
     setRouting(true);
     setRouteError('');
     try {
-      const [fromCoordinate, toCoordinate] = await Promise.all([geocodePlace(from), geocodePlace(to)]);
-      const roadRoute = await fetchRoadRoute(fromCoordinate, toCoordinate);
-      const stops = PLACES.map((place) => ({...place, distanceFromRouteMiles: distanceFromPolylineMiles({latitude: place.latitude, longitude: place.longitude}, roadRoute.coordinates)}))
-        .filter((place) => place.distanceFromRouteMiles <= corridorMiles)
+      const [fromCoord, toCoord] = await Promise.all([geocode(origin), geocode(destination)]);
+      const road = await getRoadRoute(fromCoord, toCoord);
+      const stops = PLACES.map((placeItem) => ({...placeItem, distanceFromRouteMiles: distanceFromPolylineMiles({latitude: placeItem.latitude, longitude: placeItem.longitude}, road.coordinates)}))
+        .filter((placeItem) => placeItem.distanceFromRouteMiles <= corridor)
         .sort((a, b) => a.distanceFromRouteMiles - b.distanceFromRouteMiles);
-      setRoute({fromLabel: from, toLabel: to, distanceMiles: roadRoute.distanceMiles, durationMinutes: roadRoute.durationMinutes, coordinates: roadRoute.coordinates, stops});
+      setRoute({fromLabel: origin, toLabel: destination, distanceMiles: road.distanceMiles, durationMinutes: road.durationMinutes, coordinates: road.coordinates, stops});
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Route planning failed. Check your connection and try again.';
-      setRouteError(message);
+      setRouteError(error instanceof Error ? error.message : 'Route planning failed. Check your connection and try again.');
     } finally {
       setRouting(false);
     }
@@ -475,250 +297,217 @@ export default function App() {
 
   const saveTrip = () => {
     if (!route) return;
-    const trip: SavedTrip = {
-      id: `trip-${Date.now()}`,
-      name: `${route.fromLabel} to ${route.toLabel}`,
-      from: route.fromLabel,
-      to: route.toLabel,
-      distanceMiles: route.distanceMiles,
-      durationMinutes: route.durationMinutes,
-      stopIds: selectedStopIds,
-      createdAt: new Date().toISOString()
-    };
+    const trip = {id: `trip-${Date.now()}`, name: `${route.fromLabel} to ${route.toLabel}`, from: route.fromLabel, to: route.toLabel, distanceMiles: route.distanceMiles, durationMinutes: route.durationMinutes, stopIds: selectedStopIds, createdAt: new Date().toISOString()};
     setTrips((current) => [trip, ...current]);
     Alert.alert('Pilgrimage saved', 'Your journey has been saved on this device.');
   };
 
-  const updateJournal = (placeId: string, value: string) => setJournal((current) => ({...current, [placeId]: value}));
-
   return (
     <SafeAreaView style={styles.shell}>
       <StatusBar style="light" />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.shell}>
-        <Hero />
-
+      <KeyboardAvoidingView style={styles.shell} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         {tab === 'discover' && (
-          <View style={styles.content}>
-            <View style={styles.statRow}>
-              <Metric value={PLACES.length} label="places" />
-              <Metric value={routeReadyCount} label="mapped" />
-              <Metric value={latinMassCount} label="Latin Mass" />
+          <ScrollView style={styles.page} contentContainerStyle={styles.pageContent} showsVerticalScrollIndicator={false}>
+            <AppMasthead onPlan={() => setTab('route')} />
+            <ThemeStrip onSelect={(next) => setFilter(next)} />
+            <RoutePrelude origin={origin} destination={destination} setOrigin={setOrigin} setDestination={setDestination} onPlan={() => setTab('route')} />
+            <View style={styles.sectionHead}>
+              <View>
+                <Text style={styles.overline}>Places that draw us closer</Text>
+                <Text style={styles.h2}>Find your next sacred place.</Text>
+              </View>
+              <View style={styles.countPill}><Text style={styles.countPillText}>{CATALOG_TOTAL}</Text></View>
             </View>
             <View style={styles.searchBox}>
-              <Ionicons name="search" size={21} color={colors.muted} />
-              <TextInput value={query} onChangeText={setQuery} placeholder="Search name, city, shrine, basilica..." placeholderTextColor="#9d9282" style={styles.searchInput} returnKeyType="search" />
+              <Ionicons name="search" size={20} color={colors.muted} />
+              <TextInput value={query} onChangeText={setQuery} placeholder="Search places" placeholderTextColor="#948a7c" style={styles.searchInput} returnKeyType="search" />
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-              {FILTERS.map((item) => (
-                <Pressable key={item} onPress={() => setFilter(item)} style={[styles.filter, filter === item && styles.filterActive]}>
-                  <Text style={[styles.filterText, filter === item && styles.filterTextActive]}>{item}</Text>
-                </Pressable>
-              ))}
+              {FILTERS.map((item) => <FilterChip key={item} label={item} active={filter === item} onPress={() => setFilter(item)} />)}
             </ScrollView>
-            <FlatList
-              data={results}
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={styles.list}
-              renderItem={({item}) => <PlaceCard place={item} saved={savedIds.includes(item.id)} onOpen={setSelected} onSave={toggleSaved} />}
-              ListEmptyComponent={<EmptyState title="No places found" body="Try a broader place name, city, state, or category." />}
-            />
-          </View>
+            <Text style={styles.catalogLine}>{CATALOG_TOTAL} places to discover · {MAPPED_TOTAL} mapped · {SOURCE_CHECKED_TOTAL} source checked</Text>
+            {filteredPlaces.map((placeItem) => <PlaceCard key={placeItem.id} place={placeItem} saved={savedIds.includes(placeItem.id)} onOpen={setSelected} onSave={toggleSaved} />)}
+            {!filteredPlaces.length && <EmptyState title="No places found" body="Try a broader name, city, state, or category." />}
+            <View style={styles.morePanel}>
+              <Text style={styles.overline}>More than a destination</Text>
+              <Text style={styles.h2}>Travel with an open heart.</Text>
+              <Text style={styles.body}>A quiet chapel. A moment of prayer. A new intention. Make space for the unexpected gifts of the road.</Text>
+            </View>
+          </ScrollView>
         )}
 
         {tab === 'route' && (
-          <ScrollView style={styles.content} contentContainerStyle={styles.routeContent} keyboardShouldPersistTaps="handled">
-            <Text style={styles.sectionEyebrow}>Along my route</Text>
-            <Text style={styles.sectionTitle}>Find sacred stops on the road, not just near a straight line.</Text>
-            <Field label="Start" value={from} onChangeText={setFrom} />
-            <Field label="Destination" value={to} onChangeText={setTo} />
-            <Text style={styles.inputLabel}>Distance from road</Text>
-            <View style={styles.corridorRow}>
-              {[10, 25, 50, 100].map((miles) => (
-                <Pressable key={miles} onPress={() => setCorridorMiles(miles)} style={[styles.corridorButton, corridorMiles === miles && styles.corridorButtonActive]}>
-                  <Text style={[styles.corridorText, corridorMiles === miles && styles.corridorTextActive]}>{miles} mi</Text>
-                </Pressable>
-              ))}
+          <ScrollView style={styles.page} contentContainerStyle={styles.pageContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <CompactHeader eyebrow="The defining feature" title="Find sacred stops along the way." body="Explore mapped Catholic places within your chosen distance of the actual road route." />
+            <View style={styles.routePlanner}>
+              <Field label="Starting from" value={origin} onChangeText={setOrigin} />
+              <Pressable style={styles.swapButton} onPress={() => { setOrigin(destination); setDestination(origin); }}>
+                <Ionicons name="swap-vertical" size={21} color={colors.green} />
+              </Pressable>
+              <Field label="Travelling to" value={destination} onChangeText={setDestination} />
+              <Text style={styles.fieldLabel}>Explore within</Text>
+              <View style={styles.distanceRow}>{[10, 25, 50, 100].map((miles) => <Pressable key={miles} onPress={() => setCorridor(miles)} style={[styles.distanceButton, corridor === miles && styles.distanceButtonActive]}><Text style={[styles.distanceText, corridor === miles && styles.distanceTextActive]}>{miles} mi</Text></Pressable>)}</View>
+              <Pressable style={[styles.primaryButton, routing && styles.disabledButton]} onPress={planRoute} disabled={routing}>{routing ? <ActivityIndicator color={colors.ivory} /> : <><Text style={styles.primaryButtonText}>Find sacred stops</Text><Ionicons name="arrow-forward" size={18} color={colors.ivory} /></>}</Pressable>
             </View>
-            <Pressable style={[styles.primaryButton, routing && styles.buttonDisabled]} disabled={routing} onPress={planRoute}>
-              {routing ? <ActivityIndicator color={colors.ivory} /> : <Text style={styles.primaryButtonText}>Generate route</Text>}
-            </Pressable>
-            {!!routeError && <Notice icon="alert-circle-outline" title="Route unavailable" body={routeError} tone="error" />}
-            {route ? (
-              <View style={styles.routeSummary}>
-                <View style={styles.routeLine}>
-                  <View style={styles.routeDot} />
-                  <View style={styles.routeRail} />
-                  <View style={styles.routeDotEnd} />
-                </View>
-                <View style={{flex: 1}}>
-                  <Text style={styles.routeTitle}>{Math.round(route.distanceMiles).toLocaleString()} miles</Text>
-                  <Text style={styles.routeSub}>{formatHours(route.durationMinutes)} before added stops</Text>
-                  <Text style={styles.routeMeta}>{route.stops.length} Catholic places within {corridorMiles} miles of the road geometry.</Text>
-                </View>
-              </View>
-            ) : (
-              <Notice icon="map-outline" title={`${routeReadyCount} mapped places ready`} body="Routes use Nominatim geocoding and OSRM road geometry in this build. A future backend can swap in Mapbox without exposing private tokens." tone="normal" />
-            )}
-            {route && (
-              <View style={styles.routeActions}>
-                <Pressable style={styles.secondaryButton} onPress={saveTrip}><Text style={styles.secondaryButtonText}>Save pilgrimage</Text></Pressable>
-                <Pressable style={styles.secondaryButton} onPress={() => Linking.openURL(`https://maps.apple.com/?saddr=${encodeURIComponent(from)}&daddr=${encodeURIComponent(to)}`)}><Text style={styles.secondaryButtonText}>Open in Maps</Text></Pressable>
-              </View>
-            )}
-            {route && <Text style={styles.subheading}>Suggested stops</Text>}
-            {route?.stops.map((place) => (
-              <RouteStop key={place.id} place={place} selected={selectedStopIds.includes(place.id)} onToggle={toggleStop} onOpen={setSelected} />
-            ))}
-            {route && route.stops.length === 0 && <EmptyState title="No stops in this corridor" body="Try a wider distance from the road or a different route." />}
+            {!!routeError && <Notice tone="error" icon="alert-circle-outline" title="Route unavailable" body={routeError} />}
+            {route ? <RouteResultPanel route={route} corridor={corridor} selectedStopIds={selectedStopIds} onOpen={setSelected} onToggle={toggleStop} onSaveTrip={saveTrip} /> : <Notice tone="normal" icon="map-outline" title="Route-ready catalog" body={`${MAPPED_TOTAL} mapped places are available. This mobile build uses road geometry from OSRM and never stores a private routing token inside the app.`} />}
           </ScrollView>
         )}
 
         {tab === 'saved' && (
-          <ScrollView style={styles.content} contentContainerStyle={styles.routeContent}>
-            <Text style={styles.sectionEyebrow}>Saved</Text>
-            <Text style={styles.sectionTitle}>Places and pilgrimages kept on this phone.</Text>
-            <Text style={styles.subheading}>Saved places</Text>
-            {savedPlaces.length ? savedPlaces.map((place) => <PlaceCard key={place.id} place={place} saved onOpen={setSelected} onSave={toggleSaved} />) : <EmptyState title="No saved places yet" body="Tap a bookmark on any sacred place to keep it here." />}
-            <Text style={styles.subheading}>Saved pilgrimages</Text>
-            {trips.length ? trips.map((trip) => <TripCard key={trip.id} trip={trip} onDelete={() => setTrips((current) => current.filter((item) => item.id !== trip.id))} />) : <EmptyState title="No saved pilgrimages yet" body="Create a route and save it to return to the journey later." />}
+          <ScrollView style={styles.page} contentContainerStyle={styles.pageContent} showsVerticalScrollIndicator={false}>
+            <CompactHeader eyebrow="Saved" title="Your pilgrimage, kept close." body="Saved places and journeys stay on this device so you can return to them on the road." />
+            <Text style={styles.subhead}>Saved places</Text>
+            {savedPlaces.length ? savedPlaces.map((placeItem) => <PlaceCard key={placeItem.id} place={placeItem} saved onOpen={setSelected} onSave={toggleSaved} />) : <EmptyState title="No saved places yet" body="Tap the bookmark on any place to keep it here." />}
+            <Text style={styles.subhead}>Selected stops</Text>
+            {selectedStops.length ? selectedStops.map((placeItem, index) => <MiniStop key={placeItem.id} index={index + 1} place={placeItem} onRemove={toggleStop} />) : <EmptyState title="No stops selected" body="Add places from details or route suggestions to compose a pilgrimage." />}
+            <Text style={styles.subhead}>Saved pilgrimages</Text>
+            {trips.length ? trips.map((trip) => <TripCard key={trip.id} trip={trip} onDelete={() => setTrips((current) => current.filter((item) => item.id !== trip.id))} />) : <EmptyState title="No saved pilgrimages yet" body="Generate a route and save it to revisit the journey." />}
           </ScrollView>
         )}
 
         {tab === 'journal' && (
-          <ScrollView style={styles.content} contentContainerStyle={styles.routeContent}>
-            <Text style={styles.sectionEyebrow}>Pilgrim journal</Text>
-            <Text style={styles.sectionTitle}>A quiet place for intentions and remembrance.</Text>
-            <Notice icon="book-outline" title="Personal, not performative" body="Journal notes stay on this device. Catholic Compass does not turn pilgrimage into points, streaks, or scores." tone="normal" />
-            {(savedPlaces.length ? savedPlaces : PLACES.slice(0, 4)).map((place) => (
-              <View key={place.id} style={styles.journalCard}>
-                <Text style={styles.journalPlace}>{place.name}</Text>
-                <Text style={styles.cardMeta}>{place.city}, {place.state}</Text>
-                <TextInput
-                  value={journal[place.id] ?? ''}
-                  onChangeText={(value) => updateJournal(place.id, value)}
-                  multiline
-                  placeholder="Prayer intention, reflection, or note..."
-                  placeholderTextColor="#9d9282"
-                  style={styles.journalInput}
-                />
-              </View>
-            ))}
+          <ScrollView style={styles.page} contentContainerStyle={styles.pageContent} showsVerticalScrollIndicator={false}>
+            <CompactHeader eyebrow="Pilgrim journal" title="A quiet place for remembrance." body="Notes stay on this device. Catholic Compass avoids scores, streaks, or anything that trivializes pilgrimage." />
+            {(savedPlaces.length ? savedPlaces : PLACES.slice(0, 6)).map((placeItem) => <JournalCard key={placeItem.id} place={placeItem} value={journal[placeItem.id] ?? ''} onChange={(value) => setJournal((current) => ({...current, [placeItem.id]: value}))} />)}
           </ScrollView>
         )}
 
-        {selected && <PlaceSheet place={selected} saved={savedIds.includes(selected.id)} onClose={() => setSelected(null)} onSave={toggleSaved} onAddStop={toggleStop} inTrip={selectedStopIds.includes(selected.id)} />}
-
-        <View style={styles.tabs}>
-          <TabButton icon="sparkles-outline" label="Discover" active={tab === 'discover'} onPress={() => setTab('discover')} />
-          <TabButton icon="map-outline" label="Route" active={tab === 'route'} onPress={() => setTab('route')} />
-          <TabButton icon="bookmark-outline" label="Saved" active={tab === 'saved'} onPress={() => setTab('saved')} />
-          <TabButton icon="journal-outline" label="Journal" active={tab === 'journal'} onPress={() => setTab('journal')} />
-        </View>
+        {selected && <PlaceSheet place={selected} saved={savedIds.includes(selected.id)} selectedStop={selectedStopIds.includes(selected.id)} onClose={() => setSelected(null)} onSave={toggleSaved} onStop={toggleStop} />}
+        <BottomTabs tab={tab} setTab={setTab} />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
-function Hero() {
+function AppMasthead({onPlan}: {onPlan: () => void}) {
   return (
-    <View style={styles.hero}>
-      <View style={styles.heroGlow} />
-      <View style={styles.heroTextBlock}>
-        <Text style={styles.kicker}>Catholic Compass</Text>
-        <Text style={styles.heroTitle}>Grace along the way</Text>
-        <Text style={styles.heroQuote}>"Not all those who wander are lost" - J. R. R. Tolkien</Text>
+    <View style={styles.masthead}>
+      <View style={styles.railHint}><Text style={styles.railTitle}>Your pilgrimage begins here</Text></View>
+      <View style={styles.artworkCard}>
+        <PaintedLandscape />
+        <View style={styles.artLabel}><Text style={styles.artLabelText}>Original atmospheric artwork · not destination photography</Text></View>
       </View>
-      <View style={styles.compassMark}>
-        <Ionicons name="compass-outline" size={30} color={colors.ivory} />
+      <View style={styles.heroCopy}>
+        <Text style={styles.brandLine}>✦ Catholic Compass</Text>
+        <Text style={styles.h1}>Sacred places for the road ahead.</Text>
+        <Text style={styles.quote}>“Not all those who wander are lost” — J. R. R. Tolkien</Text>
+        <Pressable style={styles.primaryButton} onPress={onPlan}><Text style={styles.primaryButtonText}>Plan your pilgrimage</Text><Ionicons name="arrow-forward" size={18} color={colors.ivory} /></Pressable>
       </View>
     </View>
   );
 }
 
-function Metric({value, label}: {value: number; label: string}) {
+function PaintedLandscape() {
   return (
-    <View style={styles.metric}>
-      <Text style={styles.metricValue}>{value}</Text>
-      <Text style={styles.metricLabel}>{label}</Text>
+    <View style={styles.painting}>
+      <View style={styles.sun} />
+      <View style={[styles.mountain, styles.mountainBack]} />
+      <View style={[styles.mountain, styles.mountainMid]} />
+      <View style={[styles.hill, styles.hillLeft]} />
+      <View style={[styles.hill, styles.hillRight]} />
+      <View style={styles.road} />
+      <View style={styles.chapel}>
+        <View style={styles.chapelTower}><Text style={styles.cross}>✝</Text></View>
+        <View style={styles.chapelBody}><View style={styles.chapelDoor} /></View>
+      </View>
+      <View style={[styles.cypress, {right: 34, top: 70, height: 72}]} />
+      <View style={[styles.cypress, {right: 58, top: 88, height: 52}]} />
+      <View style={[styles.cypress, {right: 110, top: 108, height: 42}]} />
+      <Text style={styles.paintingCaption}>Make room for the sacred.</Text>
     </View>
   );
+}
+
+function ThemeStrip({onSelect}: {onSelect: (filter: Filter) => void}) {
+  return (
+    <View style={styles.themeBlock}>
+      <Text style={styles.overline}>Curated discovery themes</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.themeRow}>
+        {THEMES.map((theme) => <Pressable key={theme.title} style={styles.themeCard} onPress={() => onSelect(theme.filter)}><Ionicons name={theme.icon} size={23} color={colors.gold} /><Text style={styles.themeTitle}>{theme.title}</Text><Text style={styles.themeBody}>{theme.body}</Text></Pressable>)}
+      </ScrollView>
+    </View>
+  );
+}
+
+function RoutePrelude({origin, destination, setOrigin, setDestination, onPlan}: {origin: string; destination: string; setOrigin: (value: string) => void; setDestination: (value: string) => void; onPlan: () => void}) {
+  return (
+    <View style={styles.prelude}>
+      <Text style={styles.overline}>The defining feature</Text>
+      <View style={styles.preludeForm}>
+        <Field label="Starting from" value={origin} onChangeText={setOrigin} />
+        <Field label="Travelling to" value={destination} onChangeText={setDestination} />
+        <Pressable style={styles.primaryButton} onPress={onPlan}><Text style={styles.primaryButtonText}>Open route planner</Text><Ionicons name="map-outline" size={18} color={colors.ivory} /></Pressable>
+      </View>
+      <Text style={styles.catalogLine}>Explore mapped places within 25 miles of your actual road route.</Text>
+    </View>
+  );
+}
+
+function CompactHeader({eyebrow, title, body}: {eyebrow: string; title: string; body: string}) {
+  return <View style={styles.compactHeader}><Text style={styles.overline}>{eyebrow}</Text><Text style={styles.h1}>{title}</Text><Text style={styles.body}>{body}</Text></View>;
 }
 
 function Field({label, value, onChangeText}: {label: string; value: string; onChangeText: (value: string) => void}) {
-  return (
-    <View>
-      <Text style={styles.inputLabel}>{label}</Text>
-      <TextInput value={value} onChangeText={onChangeText} style={styles.input} placeholderTextColor="#9d9282" autoCorrect={false} />
-    </View>
-  );
+  return <View><Text style={styles.fieldLabel}>{label}</Text><TextInput value={value} onChangeText={onChangeText} autoCorrect={false} style={styles.fieldInput} placeholderTextColor="#958a7b" /></View>;
+}
+
+function FilterChip({label, active, onPress}: {label: Filter; active: boolean; onPress: () => void}) {
+  return <Pressable onPress={onPress} style={[styles.filterChip, active && styles.filterChipActive]}><Text style={[styles.filterText, active && styles.filterTextActive]}>{label}</Text></Pressable>;
 }
 
 function PlaceCard({place, saved, onOpen, onSave}: {place: Place; saved: boolean; onOpen: (place: Place) => void; onSave: (place: Place) => void}) {
   return (
-    <Pressable onPress={() => onOpen(place)} style={styles.placeCard}>
-      <View style={styles.cardTop}>
-        <View style={styles.seal}><Ionicons name={place.categories.includes('Shrine') ? 'star-outline' : place.categories.includes('Basilica') ? 'business-outline' : 'ellipse-outline'} size={21} color={colors.gold} /></View>
-        <Pressable onPress={() => onSave(place)} hitSlop={12} style={styles.iconButton}><Ionicons name={saved ? 'bookmark' : 'bookmark-outline'} size={25} color={saved ? colors.gold : colors.green} /></Pressable>
-      </View>
-      <Text style={styles.cardTitle}>{place.name}</Text>
-      <Text style={styles.cardMeta}>{place.city}, {place.state}</Text>
-      <Text numberOfLines={3} style={styles.cardDescription}>{place.description}</Text>
-      <View style={styles.badges}>
-        <Badge label={place.verification === 'source checked' ? 'Source checked' : 'Community listing'} tone={place.verification === 'source checked' ? 'gold' : 'green'} />
-        <Badge label={place.coordinateConfidence === 'approximate' ? 'Approximate location' : 'Route ready'} tone={place.coordinateConfidence === 'approximate' ? 'muted' : 'green'} />
-      </View>
-    </Pressable>
-  );
-}
-
-function RouteStop({place, selected, onToggle, onOpen}: {place: SuggestedStop; selected: boolean; onToggle: (place: Place) => void; onOpen: (place: Place) => void}) {
-  return (
-    <View style={styles.stopCard}>
-      <Pressable style={{flex: 1}} onPress={() => onOpen(place)}>
-        <Text style={styles.stopDistance}>{place.distanceFromRouteMiles.toFixed(1)} mi from route</Text>
-        <Text style={styles.stopTitle}>{place.name}</Text>
-        <Text style={styles.cardMeta}>{place.city}, {place.state}</Text>
+    <View style={styles.placeCard}>
+      <Pressable style={styles.placeMain} onPress={() => onOpen(place)}>
+        <View style={styles.stateSeal}><Text style={styles.stateText}>{place.region}</Text></View>
+        <View style={styles.placeContent}>
+          <Text style={styles.categoryLine}>{place.categories[0]}</Text>
+          <Text style={styles.placeTitle}>{place.name}</Text>
+          <Text style={styles.placeArea}>{place.area}, {place.city}, {place.region}</Text>
+          <View style={styles.badgeRow}><Badge label={place.verification} tone={place.verification === 'Source checked' ? 'gold' : 'green'} />{place.confidence === 'approximate' ? <Badge label="Approximate" tone="muted" /> : <Badge label="Route ready" tone="green" />}</View>
+        </View>
       </Pressable>
-      <Pressable onPress={() => onToggle(place)} style={[styles.addStopButton, selected && styles.addStopButtonActive]}>
-        <Ionicons name={selected ? 'checkmark-circle-outline' : 'add-circle-outline'} size={23} color={selected ? colors.ivory : colors.green} />
-      </Pressable>
+      <View style={styles.placeActions}>
+        <Pressable style={styles.exploreButton} onPress={() => onOpen(place)}><Text style={styles.exploreText}>Explore place</Text><Ionicons name="arrow-forward" size={16} color={colors.green} /></Pressable>
+        <Pressable onPress={() => onSave(place)} style={styles.bookmarkButton}><Ionicons name={saved ? 'bookmark' : 'bookmark-outline'} size={24} color={saved ? colors.gold : colors.green} /></Pressable>
+      </View>
     </View>
   );
 }
 
-function TripCard({trip, onDelete}: {trip: SavedTrip; onDelete: () => void}) {
+function RouteResultPanel({route, corridor, selectedStopIds, onOpen, onToggle, onSaveTrip}: {route: RouteResult; corridor: number; selectedStopIds: string[]; onOpen: (place: Place) => void; onToggle: (place: Place) => void; onSaveTrip: () => void}) {
   return (
-    <View style={styles.tripCard}>
-      <Text style={styles.stopTitle}>{trip.name}</Text>
-      <Text style={styles.cardMeta}>{Math.round(trip.distanceMiles).toLocaleString()} miles - {formatHours(trip.durationMinutes)} - {trip.stopIds.length} stops</Text>
-      <Pressable style={styles.deleteButton} onPress={onDelete}><Text style={styles.deleteText}>Delete trip</Text></Pressable>
+    <View style={styles.resultsPanel}>
+      <View style={styles.routeSummary}>
+        <View style={styles.routePath}><View style={styles.routeDot} /><View style={styles.routeRail} /><View style={styles.routeDotEnd} /></View>
+        <View style={{flex: 1}}><Text style={styles.routeMiles}>{Math.round(route.distanceMiles).toLocaleString()} miles</Text><Text style={styles.routeMeta}>{formatHours(route.durationMinutes)} before added stops</Text><Text style={styles.routeBody}>{route.stops.length} places within {corridor} miles of the road geometry.</Text></View>
+      </View>
+      <View style={styles.routeButtons}><Pressable style={styles.secondaryButton} onPress={onSaveTrip}><Text style={styles.secondaryText}>Save pilgrimage</Text></Pressable><Pressable style={styles.secondaryButton} onPress={() => Linking.openURL(`https://maps.apple.com/?saddr=${encodeURIComponent(route.fromLabel)}&daddr=${encodeURIComponent(route.toLabel)}`)}><Text style={styles.secondaryText}>Open in Maps</Text></Pressable></View>
+      <Text style={styles.subhead}>Suggested stops</Text>
+      {route.stops.map((stop) => <View key={stop.id} style={styles.stopCard}><Pressable style={{flex: 1}} onPress={() => onOpen(stop)}><Text style={styles.stopDistance}>{stop.distanceFromRouteMiles.toFixed(1)} mi from route</Text><Text style={styles.stopTitle}>{stop.name}</Text><Text style={styles.placeArea}>{stop.city}, {stop.region}</Text></Pressable><Pressable style={[styles.stopAdd, selectedStopIds.includes(stop.id) && styles.stopAddActive]} onPress={() => onToggle(stop)}><Ionicons name={selectedStopIds.includes(stop.id) ? 'checkmark' : 'add'} size={22} color={selectedStopIds.includes(stop.id) ? colors.ivory : colors.green} /></Pressable></View>)}
+      {!route.stops.length && <EmptyState title="No stops in this corridor" body="Try widening the distance from the road." />}
     </View>
   );
 }
 
-function PlaceSheet({place, saved, inTrip, onClose, onSave, onAddStop}: {place: Place; saved: boolean; inTrip: boolean; onClose: () => void; onSave: (place: Place) => void; onAddStop: (place: Place) => void}) {
-  const directionsUrl = `https://maps.apple.com/?q=${encodeURIComponent(place.address)}`;
+function PlaceSheet({place, saved, selectedStop, onClose, onSave, onStop}: {place: Place; saved: boolean; selectedStop: boolean; onClose: () => void; onSave: (place: Place) => void; onStop: (place: Place) => void}) {
   return (
     <View style={styles.overlay}>
       <Pressable style={styles.scrim} onPress={onClose} />
       <View style={styles.sheet}>
         <View style={styles.sheetHandle} />
-        <View style={styles.sheetHeader}>
-          <View style={{flex: 1}}>
-            <Text style={styles.sheetEyebrow}>{place.categories.join(' / ')}</Text>
-            <Text style={styles.sheetTitle}>{place.name}</Text>
-          </View>
-          <Pressable onPress={onClose} style={styles.closeButton}><Ionicons name="close" size={22} color={colors.green} /></Pressable>
-        </View>
-        <Text style={styles.cardMeta}>{place.address}</Text>
-        <Text style={styles.cardDescription}>{place.description}</Text>
-        {!!place.scheduleNote && <Notice icon="time-outline" title="Schedules" body={place.scheduleNote} tone="normal" />}
-        <Text style={styles.sourceText}>{place.sourceNote}</Text>
+        <View style={styles.sheetHeader}><View style={{flex: 1}}><Text style={styles.categoryLine}>{place.categories.join(' / ')}</Text><Text style={styles.sheetTitle}>{place.name}</Text></View><Pressable onPress={onClose} style={styles.closeButton}><Ionicons name="close" size={22} color={colors.green} /></Pressable></View>
+        <Text style={styles.placeArea}>{place.address}</Text>
+        <Text style={styles.body}>{place.description}</Text>
+        {!!place.scheduleNote && <Notice tone="normal" icon="time-outline" title="Schedules" body={place.scheduleNote} />}
+        <View style={styles.badgeRow}><Badge label={place.verification} tone={place.verification === 'Source checked' ? 'gold' : 'green'} /><Badge label={place.confidence === 'approximate' ? 'Approximate coordinates' : 'Mapped coordinates'} tone={place.confidence === 'approximate' ? 'muted' : 'green'} /></View>
+        <Text style={styles.sourceNote}>{place.sourceNote}</Text>
         <View style={styles.sheetActions}>
           <Pressable style={styles.primaryButton} onPress={() => onSave(place)}><Text style={styles.primaryButtonText}>{saved ? 'Unsave place' : 'Save place'}</Text></Pressable>
-          <Pressable style={styles.secondaryButton} onPress={() => onAddStop(place)}><Text style={styles.secondaryButtonText}>{inTrip ? 'Remove from trip' : 'Add to trip'}</Text></Pressable>
-          <Pressable style={styles.secondaryButton} onPress={() => Linking.openURL(directionsUrl)}><Text style={styles.secondaryButtonText}>Directions</Text></Pressable>
-          {!!place.website && <Pressable style={styles.secondaryButton} onPress={() => Linking.openURL(place.website!)}><Text style={styles.secondaryButtonText}>Official source</Text></Pressable>}
+          <Pressable style={styles.secondaryButton} onPress={() => onStop(place)}><Text style={styles.secondaryText}>{selectedStop ? 'Remove from pilgrimage' : 'Add to pilgrimage'}</Text></Pressable>
+          <Pressable style={styles.secondaryButton} onPress={() => Linking.openURL(`https://maps.apple.com/?q=${encodeURIComponent(place.address)}`)}><Text style={styles.secondaryText}>Directions</Text></Pressable>
+          {!!place.website && <Pressable style={styles.secondaryButton} onPress={() => Linking.openURL(place.website!)}><Text style={styles.secondaryText}>Official source</Text></Pressable>}
         </View>
       </View>
     </View>
@@ -730,125 +519,160 @@ function Badge({label, tone}: {label: string; tone: 'gold' | 'green' | 'muted'})
 }
 
 function Notice({icon, title, body, tone}: {icon: keyof typeof Ionicons.glyphMap; title: string; body: string; tone: 'normal' | 'error'}) {
-  return (
-    <View style={[styles.notice, tone === 'error' && styles.noticeError]}>
-      <Ionicons name={icon} size={23} color={tone === 'error' ? colors.oxblood : colors.gold} />
-      <View style={{flex: 1}}>
-        <Text style={styles.noticeTitle}>{title}</Text>
-        <Text style={styles.noticeText}>{body}</Text>
-      </View>
-    </View>
-  );
+  return <View style={[styles.notice, tone === 'error' && styles.noticeError]}><Ionicons name={icon} size={22} color={tone === 'error' ? colors.oxblood : colors.gold} /><View style={{flex: 1}}><Text style={styles.noticeTitle}>{title}</Text><Text style={styles.noticeText}>{body}</Text></View></View>;
+}
+
+function MiniStop({index, place, onRemove}: {index: number; place: Place; onRemove: (place: Place) => void}) {
+  return <View style={styles.miniStop}><Text style={styles.stopNumber}>{index}</Text><View style={{flex: 1}}><Text style={styles.stopTitle}>{place.name}</Text><Text style={styles.placeArea}>{place.city}, {place.region}</Text></View><Pressable onPress={() => onRemove(place)}><Ionicons name="close-circle-outline" size={24} color={colors.oxblood} /></Pressable></View>;
+}
+
+function TripCard({trip, onDelete}: {trip: SavedTrip; onDelete: () => void}) {
+  return <View style={styles.tripCard}><Text style={styles.stopTitle}>{trip.name}</Text><Text style={styles.placeArea}>{Math.round(trip.distanceMiles).toLocaleString()} miles · {formatHours(trip.durationMinutes)} · {trip.stopIds.length} stops</Text><Pressable style={styles.deleteButton} onPress={onDelete}><Text style={styles.deleteText}>Delete trip</Text></Pressable></View>;
+}
+
+function JournalCard({place, value, onChange}: {place: Place; value: string; onChange: (value: string) => void}) {
+  return <View style={styles.journalCard}><Text style={styles.stopTitle}>{place.name}</Text><Text style={styles.placeArea}>{place.city}, {place.region}</Text><TextInput value={value} onChangeText={onChange} multiline placeholder="Prayer intention, reflection, or note..." placeholderTextColor="#958a7b" style={styles.journalInput} /></View>;
 }
 
 function EmptyState({title, body}: {title: string; body: string}) {
-  return (
-    <View style={styles.empty}>
-      <Ionicons name="compass-outline" size={32} color={colors.gold} />
-      <Text style={styles.emptyTitle}>{title}</Text>
-      <Text style={styles.emptyBody}>{body}</Text>
-    </View>
-  );
+  return <View style={styles.empty}><Ionicons name="compass-outline" size={30} color={colors.gold} /><Text style={styles.emptyTitle}>{title}</Text><Text style={styles.emptyBody}>{body}</Text></View>;
 }
 
-function TabButton({icon, label, active, onPress}: {icon: keyof typeof Ionicons.glyphMap; label: string; active: boolean; onPress: () => void}) {
-  return (
-    <Pressable onPress={onPress} style={styles.tabButton}>
-      <Ionicons name={icon} size={23} color={active ? colors.gold : '#dacfb9'} />
-      <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{label}</Text>
-    </Pressable>
-  );
+function BottomTabs({tab, setTab}: {tab: Tab; setTab: (tab: Tab) => void}) {
+  const items: {tab: Tab; label: string; icon: keyof typeof Ionicons.glyphMap}[] = [
+    {tab: 'discover', label: 'Discover', icon: 'sparkles-outline'},
+    {tab: 'route', label: 'Route', icon: 'map-outline'},
+    {tab: 'saved', label: 'Saved', icon: 'bookmark-outline'},
+    {tab: 'journal', label: 'Journal', icon: 'journal-outline'}
+  ];
+  return <View style={styles.tabs}>{items.map((item) => <Pressable key={item.tab} onPress={() => setTab(item.tab)} style={styles.tabButton}><Ionicons name={item.icon} size={23} color={tab === item.tab ? colors.gold : '#d8cdb8'} /><Text style={[styles.tabText, tab === item.tab && styles.tabTextActive]}>{item.label}</Text></Pressable>)}</View>;
 }
 
 const styles = StyleSheet.create({
   shell: {flex: 1, backgroundColor: colors.ivory},
-  hero: {height: 214, backgroundColor: colors.green, overflow: 'hidden', paddingHorizontal: 24, paddingTop: 22, paddingBottom: 20, flexDirection: 'row', alignItems: 'flex-end'},
-  heroGlow: {position: 'absolute', width: 260, height: 260, borderRadius: 130, right: -90, top: -80, backgroundColor: 'rgba(234,216,170,0.12)'},
-  heroTextBlock: {flex: 1, paddingRight: 18},
-  kicker: {color: colors.gold, fontSize: 13, fontWeight: '800', letterSpacing: 1.5, textTransform: 'uppercase'},
-  heroTitle: {color: colors.ivory, fontSize: 36, fontWeight: '900', lineHeight: 39, marginTop: 8},
-  heroQuote: {color: '#d8c8a9', fontSize: 13, lineHeight: 18, marginTop: 10},
-  compassMark: {width: 64, height: 64, borderRadius: 32, borderWidth: 1.5, borderColor: '#cda659', alignItems: 'center', justifyContent: 'center', marginBottom: 10},
-  content: {flex: 1, paddingHorizontal: 18, paddingTop: 16},
-  statRow: {flexDirection: 'row', gap: 10, marginBottom: 14},
-  metric: {flex: 1, minHeight: 76, borderRadius: 18, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card, padding: 14, justifyContent: 'center'},
-  metricValue: {fontSize: 25, fontWeight: '900', color: colors.green},
-  metricLabel: {fontSize: 12, color: colors.muted, marginTop: 2},
-  searchBox: {minHeight: 54, borderRadius: 25, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 10},
+  page: {flex: 1, backgroundColor: colors.ivory},
+  pageContent: {padding: 16, paddingBottom: 116, gap: 16},
+  masthead: {gap: 14},
+  railHint: {backgroundColor: colors.green, borderRadius: 28, paddingVertical: 13, paddingHorizontal: 17},
+  railTitle: {color: colors.gold2, textTransform: 'uppercase', letterSpacing: 1.4, fontWeight: '900', fontSize: 12},
+  artworkCard: {borderRadius: 30, overflow: 'hidden', backgroundColor: colors.green, borderWidth: 1, borderColor: '#2f5e4f'},
+  painting: {height: 284, backgroundColor: colors.sky, overflow: 'hidden'},
+  sun: {position: 'absolute', width: 92, height: 92, borderRadius: 46, left: 22, top: 30, backgroundColor: '#ffe6a9', opacity: 0.88},
+  mountain: {position: 'absolute', transform: [{rotate: '45deg'}], backgroundColor: '#91a08b'},
+  mountainBack: {width: 210, height: 210, left: 34, top: 70, opacity: 0.35},
+  mountainMid: {width: 230, height: 230, right: -10, top: 58, opacity: 0.48},
+  hill: {position: 'absolute', height: 150, borderTopLeftRadius: 180, borderTopRightRadius: 180, bottom: -30, backgroundColor: colors.hill},
+  hillLeft: {left: -70, width: 270},
+  hillRight: {right: -52, width: 300, backgroundColor: '#5f744f'},
+  road: {position: 'absolute', width: 72, height: 210, right: 88, bottom: -36, backgroundColor: '#e7d4a9', borderRadius: 46, transform: [{rotate: '26deg'}], borderWidth: 2, borderColor: '#f4e8c9'},
+  chapel: {position: 'absolute', right: 40, top: 92, alignItems: 'center'},
+  chapelTower: {width: 33, height: 48, backgroundColor: '#d9c69c', borderTopLeftRadius: 16, borderTopRightRadius: 16, alignItems: 'center', justifyContent: 'flex-start'},
+  chapelBody: {width: 84, height: 58, backgroundColor: '#d3bf91', borderTopLeftRadius: 22, borderTopRightRadius: 22, alignItems: 'center', justifyContent: 'flex-end'},
+  chapelDoor: {width: 19, height: 30, backgroundColor: colors.green, borderTopLeftRadius: 12, borderTopRightRadius: 12},
+  cross: {color: colors.green, fontSize: 18, marginTop: -13},
+  cypress: {position: 'absolute', width: 15, borderRadius: 12, backgroundColor: '#173d34'},
+  paintingCaption: {position: 'absolute', left: 18, bottom: 18, right: 150, color: colors.ivory, fontFamily: 'Georgia', fontWeight: '700', fontSize: 28, lineHeight: 31},
+  artLabel: {paddingHorizontal: 14, paddingVertical: 9, backgroundColor: '#0f312a'},
+  artLabelText: {color: '#d7ccb6', fontSize: 11},
+  heroCopy: {backgroundColor: colors.card, borderRadius: 28, borderWidth: 1, borderColor: colors.line, padding: 18, gap: 11},
+  brandLine: {color: colors.gold, fontSize: 12, fontWeight: '900', letterSpacing: 1.2, textTransform: 'uppercase'},
+  h1: {fontFamily: 'Georgia', color: colors.green, fontSize: 34, lineHeight: 38, fontWeight: '700'},
+  h2: {fontFamily: 'Georgia', color: colors.green, fontSize: 26, lineHeight: 30, fontWeight: '700'},
+  quote: {color: colors.muted, fontSize: 15, lineHeight: 21},
+  body: {color: '#50483e', fontSize: 16, lineHeight: 23},
+  primaryButton: {minHeight: 54, borderRadius: 18, backgroundColor: colors.green, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, paddingHorizontal: 16},
+  primaryButtonText: {color: colors.ivory, fontSize: 16, fontWeight: '900'},
+  themeBlock: {gap: 10},
+  overline: {color: colors.gold, textTransform: 'uppercase', letterSpacing: 1.2, fontWeight: '900', fontSize: 12},
+  themeRow: {gap: 10, paddingRight: 16},
+  themeCard: {width: 218, minHeight: 146, borderRadius: 22, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, padding: 15, gap: 8},
+  themeTitle: {fontSize: 18, color: colors.green, fontWeight: '900'},
+  themeBody: {fontSize: 14, color: colors.muted, lineHeight: 20},
+  prelude: {backgroundColor: colors.green, borderRadius: 28, padding: 17, gap: 12},
+  preludeForm: {gap: 10},
+  compactHeader: {backgroundColor: colors.card, borderRadius: 28, borderWidth: 1, borderColor: colors.line, padding: 18, gap: 10},
+  fieldLabel: {color: colors.muted, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.8, fontSize: 12, marginBottom: 7},
+  fieldInput: {minHeight: 52, borderRadius: 18, borderWidth: 1, borderColor: colors.line, backgroundColor: '#fffaf0', paddingHorizontal: 14, color: colors.ink, fontSize: 16},
+  sectionHead: {flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12},
+  countPill: {width: 64, height: 64, borderRadius: 32, backgroundColor: colors.green, alignItems: 'center', justifyContent: 'center'},
+  countPillText: {color: colors.ivory, fontWeight: '900', fontSize: 20},
+  searchBox: {minHeight: 56, borderRadius: 24, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 10},
   searchInput: {flex: 1, color: colors.ink, fontSize: 16},
-  filterRow: {gap: 8, paddingVertical: 12},
-  filter: {paddingHorizontal: 14, paddingVertical: 10, borderRadius: 999, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line},
-  filterActive: {backgroundColor: colors.green, borderColor: colors.green},
-  filterText: {fontSize: 13, color: colors.green, fontWeight: '800'},
+  filterRow: {gap: 8, paddingRight: 16},
+  filterChip: {borderRadius: 999, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card, paddingVertical: 10, paddingHorizontal: 14},
+  filterChipActive: {backgroundColor: colors.green, borderColor: colors.green},
+  filterText: {color: colors.green, fontWeight: '900', fontSize: 13},
   filterTextActive: {color: colors.ivory},
-  list: {paddingBottom: 112, gap: 14},
-  placeCard: {backgroundColor: colors.card, borderRadius: 24, borderWidth: 1, borderColor: colors.line, padding: 18, shadowColor: colors.shadow, shadowOpacity: 1, shadowRadius: 12, shadowOffset: {width: 0, height: 6}},
-  cardTop: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'},
-  seal: {width: 44, height: 44, borderRadius: 22, backgroundColor: '#f4ead5', alignItems: 'center', justifyContent: 'center'},
-  iconButton: {width: 46, height: 46, alignItems: 'center', justifyContent: 'center'},
-  cardTitle: {fontSize: 23, lineHeight: 27, fontWeight: '900', color: colors.ink, marginTop: 16},
-  cardMeta: {fontSize: 15, color: colors.muted, marginTop: 5},
-  cardDescription: {fontSize: 15, lineHeight: 22, color: '#4e473e', marginTop: 12},
-  badges: {flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14},
-  badge: {borderRadius: 999, backgroundColor: colors.green3, paddingHorizontal: 11, paddingVertical: 7},
+  catalogLine: {color: colors.muted, fontSize: 13, lineHeight: 19},
+  placeCard: {backgroundColor: colors.card, borderRadius: 24, borderWidth: 1, borderColor: colors.line, overflow: 'hidden'},
+  placeMain: {flexDirection: 'row', gap: 14, padding: 15},
+  stateSeal: {width: 54, height: 54, borderRadius: 18, backgroundColor: colors.paper, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center'},
+  stateText: {fontWeight: '900', color: colors.green, fontSize: 16},
+  placeContent: {flex: 1},
+  categoryLine: {color: colors.gold, fontWeight: '900', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.9},
+  placeTitle: {fontFamily: 'Georgia', fontSize: 23, lineHeight: 27, fontWeight: '700', color: colors.ink, marginTop: 4},
+  placeArea: {fontSize: 14, color: colors.muted, lineHeight: 20, marginTop: 5},
+  badgeRow: {flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 11},
+  badge: {borderRadius: 999, backgroundColor: colors.green3, paddingHorizontal: 10, paddingVertical: 6},
   badgeGold: {backgroundColor: colors.gold2},
-  badgeMuted: {backgroundColor: '#e7dfd1'},
-  badgeText: {fontSize: 12, fontWeight: '900', color: colors.green},
-  tabs: {position: 'absolute', left: 12, right: 12, bottom: 12, minHeight: 78, borderRadius: 30, backgroundColor: colors.green, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', borderWidth: 1, borderColor: '#2c6154', paddingBottom: 2},
-  tabButton: {alignItems: 'center', justifyContent: 'center', gap: 4, minWidth: 70, minHeight: 56},
-  tabLabel: {fontSize: 12, fontWeight: '800', color: '#dacfb9'},
-  tabLabelActive: {color: colors.ivory},
-  routeContent: {paddingBottom: 116, gap: 14},
-  sectionEyebrow: {fontSize: 13, fontWeight: '900', letterSpacing: 1.2, textTransform: 'uppercase', color: colors.gold},
-  sectionTitle: {fontSize: 28, lineHeight: 32, fontWeight: '900', color: colors.green, marginBottom: 2},
-  inputLabel: {fontSize: 14, color: colors.muted, fontWeight: '900', marginBottom: 7},
-  input: {height: 54, borderRadius: 19, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card, paddingHorizontal: 15, color: colors.ink, fontSize: 16},
-  corridorRow: {flexDirection: 'row', gap: 8},
-  corridorButton: {flex: 1, height: 43, borderRadius: 999, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center'},
-  corridorButtonActive: {backgroundColor: colors.green, borderColor: colors.green},
-  corridorText: {fontSize: 13, fontWeight: '900', color: colors.green},
-  corridorTextActive: {color: colors.ivory},
-  primaryButton: {backgroundColor: colors.green, minHeight: 54, borderRadius: 19, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16},
-  primaryButtonText: {color: colors.ivory, fontWeight: '900', fontSize: 16},
-  buttonDisabled: {opacity: 0.7},
-  secondaryButton: {backgroundColor: colors.parchment, minHeight: 50, borderRadius: 17, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14},
-  secondaryButtonText: {color: colors.green, fontWeight: '900', fontSize: 15},
-  notice: {flexDirection: 'row', gap: 12, backgroundColor: '#fff8e7', borderWidth: 1, borderColor: '#ecd9a8', borderRadius: 20, padding: 15},
-  noticeError: {backgroundColor: '#fff1ed', borderColor: '#e6bbb0'},
-  noticeTitle: {fontSize: 15, fontWeight: '900', color: colors.green, marginBottom: 3},
-  noticeText: {fontSize: 14, lineHeight: 20, color: '#51483d'},
-  routeSummary: {flexDirection: 'row', gap: 14, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: 24, padding: 18},
-  routeLine: {width: 26, alignItems: 'center'},
+  badgeMuted: {backgroundColor: '#e8dfd1'},
+  badgeText: {fontSize: 11, fontWeight: '900', color: colors.green},
+  placeActions: {borderTopWidth: 1, borderTopColor: colors.line, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15, paddingVertical: 12},
+  exploreButton: {flexDirection: 'row', alignItems: 'center', gap: 7},
+  exploreText: {color: colors.green, fontWeight: '900'},
+  bookmarkButton: {width: 44, height: 44, alignItems: 'center', justifyContent: 'center'},
+  morePanel: {backgroundColor: colors.green, borderRadius: 28, padding: 19, gap: 9},
+  swapButton: {alignSelf: 'center', width: 44, height: 44, borderRadius: 22, backgroundColor: colors.paper, alignItems: 'center', justifyContent: 'center'},
+  distanceRow: {flexDirection: 'row', gap: 8},
+  distanceButton: {flex: 1, minHeight: 44, borderRadius: 999, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center'},
+  distanceButtonActive: {backgroundColor: colors.green, borderColor: colors.green},
+  distanceText: {color: colors.green, fontWeight: '900'},
+  distanceTextActive: {color: colors.ivory},
+  disabledButton: {opacity: 0.7},
+  routePlanner: {backgroundColor: colors.card, borderRadius: 28, borderWidth: 1, borderColor: colors.line, padding: 16, gap: 12},
+  notice: {flexDirection: 'row', gap: 12, backgroundColor: '#fff8e8', borderWidth: 1, borderColor: '#ecd8a8', borderRadius: 22, padding: 15},
+  noticeError: {backgroundColor: '#fff0ec', borderColor: '#e3b8af'},
+  noticeTitle: {fontWeight: '900', color: colors.green, fontSize: 15, marginBottom: 3},
+  noticeText: {color: '#51483e', fontSize: 14, lineHeight: 20},
+  resultsPanel: {gap: 13},
+  routeSummary: {flexDirection: 'row', gap: 14, backgroundColor: colors.card, borderRadius: 24, borderWidth: 1, borderColor: colors.line, padding: 16},
+  routePath: {width: 26, alignItems: 'center'},
   routeDot: {width: 16, height: 16, borderRadius: 8, backgroundColor: colors.gold},
-  routeRail: {width: 3, flex: 1, minHeight: 70, backgroundColor: colors.line, marginVertical: 3},
+  routeRail: {width: 3, flex: 1, minHeight: 72, backgroundColor: colors.line, marginVertical: 4},
   routeDotEnd: {width: 16, height: 16, borderRadius: 8, backgroundColor: colors.green},
-  routeTitle: {fontSize: 25, fontWeight: '900', color: colors.green},
-  routeSub: {fontSize: 15, color: colors.muted, marginTop: 3},
-  routeMeta: {fontSize: 14, lineHeight: 20, color: '#4e473e', marginTop: 10},
-  routeActions: {flexDirection: 'row', gap: 10},
-  subheading: {fontSize: 18, fontWeight: '900', color: colors.green, marginTop: 8},
-  stopCard: {flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.card, borderRadius: 20, borderWidth: 1, borderColor: colors.line, padding: 15},
-  stopDistance: {fontSize: 12, color: colors.gold, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.8},
-  stopTitle: {fontSize: 18, lineHeight: 22, fontWeight: '900', color: colors.ink, marginTop: 4},
-  addStopButton: {width: 44, height: 44, borderRadius: 22, backgroundColor: colors.parchment, alignItems: 'center', justifyContent: 'center'},
-  addStopButtonActive: {backgroundColor: colors.green},
-  empty: {alignItems: 'center', padding: 28, borderRadius: 24, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card},
-  emptyTitle: {fontSize: 19, fontWeight: '900', color: colors.green, marginTop: 12},
-  emptyBody: {textAlign: 'center', color: colors.muted, lineHeight: 21, marginTop: 6},
-  overlay: {position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, justifyContent: 'flex-end'},
-  scrim: {position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(18, 28, 24, 0.46)'},
-  sheet: {backgroundColor: colors.ivory, borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 22, paddingBottom: 96, borderWidth: 1, borderColor: colors.line, maxHeight: '86%'},
-  sheetHandle: {alignSelf: 'center', width: 48, height: 5, borderRadius: 999, backgroundColor: '#cbbca5', marginBottom: 18},
-  sheetHeader: {flexDirection: 'row', gap: 14, alignItems: 'flex-start'},
-  sheetEyebrow: {fontSize: 12, color: colors.gold, fontWeight: '900', letterSpacing: 1.1, textTransform: 'uppercase'},
-  sheetTitle: {fontSize: 28, lineHeight: 32, fontWeight: '900', color: colors.green, marginTop: 4},
-  closeButton: {width: 40, height: 40, borderRadius: 20, backgroundColor: colors.parchment, alignItems: 'center', justifyContent: 'center'},
-  sourceText: {fontSize: 13, lineHeight: 19, color: colors.muted, marginTop: 12},
-  sheetActions: {gap: 10, marginTop: 16},
-  tripCard: {backgroundColor: colors.card, borderRadius: 20, borderWidth: 1, borderColor: colors.line, padding: 15},
-  deleteButton: {alignSelf: 'flex-start', marginTop: 10, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 999, backgroundColor: '#f3ded9'},
+  routeMiles: {fontFamily: 'Georgia', color: colors.green, fontSize: 28, fontWeight: '700'},
+  routeMeta: {color: colors.muted, marginTop: 4},
+  routeBody: {fontSize: 14, color: '#51483e', lineHeight: 20, marginTop: 9},
+  routeButtons: {flexDirection: 'row', gap: 10},
+  secondaryButton: {flex: 1, minHeight: 50, borderRadius: 17, backgroundColor: colors.paper, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10},
+  secondaryText: {color: colors.green, fontWeight: '900', textAlign: 'center'},
+  subhead: {fontFamily: 'Georgia', fontSize: 22, color: colors.green, fontWeight: '700', marginTop: 5},
+  stopCard: {flexDirection: 'row', gap: 12, alignItems: 'center', backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: 22, padding: 14},
+  stopDistance: {fontSize: 12, fontWeight: '900', color: colors.gold, textTransform: 'uppercase'},
+  stopTitle: {fontSize: 18, lineHeight: 22, fontWeight: '900', color: colors.ink},
+  stopAdd: {width: 44, height: 44, borderRadius: 22, backgroundColor: colors.paper, alignItems: 'center', justifyContent: 'center'},
+  stopAddActive: {backgroundColor: colors.green},
+  empty: {alignItems: 'center', borderRadius: 24, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card, padding: 24},
+  emptyTitle: {fontFamily: 'Georgia', fontSize: 21, color: colors.green, fontWeight: '700', marginTop: 10},
+  emptyBody: {color: colors.muted, textAlign: 'center', lineHeight: 21, marginTop: 6},
+  miniStop: {flexDirection: 'row', gap: 12, alignItems: 'center', backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: 22, padding: 14},
+  stopNumber: {width: 34, height: 34, borderRadius: 17, backgroundColor: colors.green, color: colors.ivory, textAlign: 'center', lineHeight: 34, fontWeight: '900'},
+  tripCard: {backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: 22, padding: 15},
+  deleteButton: {alignSelf: 'flex-start', backgroundColor: '#f2ded8', borderRadius: 999, marginTop: 11, paddingHorizontal: 12, paddingVertical: 8},
   deleteText: {color: colors.oxblood, fontWeight: '900'},
-  journalCard: {backgroundColor: colors.card, borderRadius: 22, borderWidth: 1, borderColor: colors.line, padding: 16},
-  journalPlace: {fontSize: 19, fontWeight: '900', color: colors.green},
-  journalInput: {minHeight: 100, textAlignVertical: 'top', marginTop: 12, borderRadius: 17, borderWidth: 1, borderColor: colors.line, backgroundColor: '#fffaf0', padding: 13, fontSize: 15, lineHeight: 21, color: colors.ink}
+  journalCard: {backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: 24, padding: 15},
+  journalInput: {minHeight: 112, marginTop: 12, borderRadius: 18, borderWidth: 1, borderColor: colors.line, backgroundColor: '#fffaf0', padding: 13, color: colors.ink, textAlignVertical: 'top', fontSize: 15, lineHeight: 21},
+  overlay: {position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, justifyContent: 'flex-end'},
+  scrim: {position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(18, 29, 24, 0.48)'},
+  sheet: {backgroundColor: colors.ivory, borderTopLeftRadius: 34, borderTopRightRadius: 34, padding: 20, paddingBottom: 102, maxHeight: '88%', borderWidth: 1, borderColor: colors.line},
+  sheetHandle: {alignSelf: 'center', width: 48, height: 5, borderRadius: 999, backgroundColor: '#c8baa4', marginBottom: 17},
+  sheetHeader: {flexDirection: 'row', gap: 12, alignItems: 'flex-start'},
+  sheetTitle: {fontFamily: 'Georgia', color: colors.green, fontSize: 30, lineHeight: 34, fontWeight: '700', marginTop: 5},
+  closeButton: {width: 42, height: 42, borderRadius: 21, backgroundColor: colors.paper, alignItems: 'center', justifyContent: 'center'},
+  sourceNote: {fontSize: 13, color: colors.muted, lineHeight: 19, marginTop: 12},
+  sheetActions: {gap: 10, marginTop: 15},
+  tabs: {position: 'absolute', left: 12, right: 12, bottom: 12, minHeight: 78, borderRadius: 31, backgroundColor: colors.green, borderWidth: 1, borderColor: '#2d6154', flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center'},
+  tabButton: {minWidth: 70, minHeight: 58, alignItems: 'center', justifyContent: 'center', gap: 4},
+  tabText: {fontSize: 12, fontWeight: '900', color: '#d8cdb8'},
+  tabTextActive: {color: colors.ivory}
 });
