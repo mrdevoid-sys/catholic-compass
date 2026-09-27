@@ -1,0 +1,34 @@
+{
+  "expo": {
+    "name": "Catholic Compass",
+    "owner": "potsofclay",
+    "slug": "catholic-compass",
+    "scheme": "catholiccompass",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.catholiccompass.pilgrim",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Catholic Compass uses your location only when you ask to find Catholic places near you.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "app.catholiccompass.pilgrim"
+    },
+    "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#173d35"
+        }
+      ]
+    ],
+    "extra": {
+      "apiBaseUrl": "https://api.example.com"
+    }
+  }
+}
